@@ -18,6 +18,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import ChatIcon from '@mui/icons-material/Chat';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
@@ -25,6 +26,8 @@ import ExerciseSelector from './components/ExerciseSelector';
 import ExerciseMonitor from './components/ExerciseMonitor';
 import Dashboard from './components/Dashboard';
 import MediaPipeDebug from './components/MediaPipeDebug';
+import ChatBot from './components/ChatBot';
+
 
 // Create Material-UI theme
 const theme = createTheme({
@@ -46,7 +49,7 @@ const theme = createTheme({
   },
 });
 
-type AppView = 'exercises' | 'monitor' | 'dashboard' | 'debug';
+type AppView = 'exercises' | 'monitor' | 'dashboard' | 'debug' | 'chat';
 
 const AppContent: React.FC = () => {
   const { currentUser, logout } = useAuth();
@@ -125,6 +128,12 @@ const AppContent: React.FC = () => {
               value="debug"
               sx={{ color: 'white' }}
             />
+            <Tab 
+              icon={<ChatIcon />} 
+              label="Chat" 
+              value="chat"
+              sx={{ color: 'white' }}
+            />
           </Tabs>
 
           {/* User Menu */}
@@ -178,6 +187,10 @@ const AppContent: React.FC = () => {
         
         {currentView === 'debug' && (
           <MediaPipeDebug />
+        )}
+        
+        {currentView === 'chat' && (
+          <ChatBot />
         )}
       </Box>
     </Box>

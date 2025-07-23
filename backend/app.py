@@ -3,10 +3,25 @@ import pickle
 import numpy as np
 from datetime import datetime
 import json
+import threading
+import subprocess
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import tensorflow as tf
 from tensorflow.keras.models import load_model
+from dotenv import load_dotenv
+
+# Import chat functionality
+try:
+    from unified_chat import chat_step, run_fitness_flow
+    from fitness import generate_exercise_plan, append_prompt_to_json, explain_prompt_to_user, save_explanation_to_json
+    CHAT_AVAILABLE = True
+except ImportError as e:
+    print(f"Chat functionality not available: {e}")
+    CHAT_AVAILABLE = False
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -435,12 +450,130 @@ def get_all_sessions():
     """Get all sessions (for admin/debugging)"""
     return jsonify({'sessions': exercise_sessions})
 
+# ========================================
+# CHAT ENDPOINTS
+# ========================================
+
+@app.route("/start_chat", methods=["POST"])
+def start_chat():
+    """Handle chat interactions with the AI fitness assistant"""
+    if not CHAT_AVAILABLE:
+        return jsonify({"error": "Chat functionality not available"}), 500
+    
+    try:
+        data = request.json
+        flow = data.get("flow")
+        message = data.get("message")
+        history = data.get("history", [])
+        user_data = data.get("user_data", {})
+
+        if flow != "fitness":
+            return jsonify({"error": "Only fitness flow supported"}), 400
+
+        result = chat_step(flow, message, history, user_data)
+
+        # Add this key to tell frontend if data collection is complete
+        result["completed"] = all(result["user_data"].values()) if result.get("user_data") else False
+
+        return jsonify(result)
+    
+    except Exception as e:
+        print(f"Chat error: {str(e)}")
+        return jsonify({
+            "error": "Chat service error",
+            "reply": "Sorry, I'm having trouble processing your request. Please try again.",
+            "user_data": user_data,
+            "completed": False
+        }), 500
+
+@app.route("/custom_exercises", methods=["GET"])
+def list_custom_exercises():
+    """List custom exercises from the database"""
+    try:
+        base_path = "exercises_db/fitness"
+        exercises = []
+
+        if not os.path.exists(base_path):
+            return jsonify(exercises)
+
+        for folder in os.listdir(base_path):
+            folder_path = os.path.join(base_path, folder)
+            plan_path = os.path.join(folder_path, "plan.json")
+
+            if os.path.isfile(plan_path):
+                with open(plan_path, "r") as f:
+                    try:
+                        plan_data = json.load(f)
+
+                        # Ensure proper structure
+                        if 'user_data' in plan_data:
+                            exercises.append(plan_data)
+                    except json.JSONDecodeError:
+                        continue
+
+        return jsonify(exercises)
+    
+    except Exception as e:
+        print(f"Error listing custom exercises: {str(e)}")
+        return jsonify([])
+
+@app.route("/generate_plan", methods=["POST"])
+def generate_plan():
+    """Generate a fitness plan based on user data"""
+    if not CHAT_AVAILABLE:
+        return jsonify({"error": "Plan generation not available"}), 500
+    
+    try:
+        data = request.json
+        flow = data.get("flow")
+        user_data = data.get("user_data", {})
+
+        if flow != "fitness":
+            return jsonify({"error": "Only fitness flow supported"}), 400
+
+        result = run_fitness_flow(user_data)
+        return jsonify(result)
+    
+    except Exception as e:
+        print(f"Plan generation error: {str(e)}")
+        return jsonify({"error": "Failed to generate plan"}), 500
+
+# Background monitoring functions
+def run_monitor_agent(exercise_name):
+    """Run monitoring agent in background"""
+    subprocess.run(["python", "moniter_agent/main.py", exercise_name])
+
+@app.route("/start_monitoring", methods=["POST"])
+def start_monitoring():
+    """Start background monitoring for an exercise"""
+    try:
+        data = request.json
+        exercise_name = data.get("exercise_name")
+        
+        if not exercise_name:
+            return jsonify({"error": "Exercise name required"}), 400
+        
+        # Start monitoring in background thread
+        thread = threading.Thread(target=run_monitor_agent, args=(exercise_name,))
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({"message": f"Started monitoring for {exercise_name}"})
+    
+    except Exception as e:
+        print(f"Monitoring error: {str(e)}")
+        return jsonify({"error": "Failed to start monitoring"}), 500
+
 if __name__ == '__main__':
     print("Starting Physiotherapy Exercise Monitoring Backend...")
     
     # Load models on startup
     if load_models():
         print("Models loaded successfully. Starting Flask server...")
+        
+        # ✅ Print all available routes
+        print(f"✅ Available routes: {[str(rule) for rule in app.url_map.iter_rules()]}")
+        
         app.run(debug=True, host='0.0.0.0', port=5000)
     else:
-        print("Failed to load models. Please check model files.") 
+        print("Failed to load models. Please check model files.")
