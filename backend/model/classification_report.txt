@@ -1,0 +1,15 @@
+                         precision    recall  f1-score   support
+
+    barbell biceps curl       1.00      0.96      0.98        25
+            bench press       1.00      1.00      1.00        30
+      chest fly machine       1.00      1.00      1.00        30
+               deadlift       1.00      1.00      1.00        24
+decline bench press_dbp       1.00      1.00      1.00         4
+            hammer curl       1.00      1.00      1.00        12
+             hip thrust       0.96      1.00      0.98        22
+    incline bench press       1.00      0.95      0.97        39
+           lat pulldown       0.93      1.00      0.96        27
+
+               accuracy                           0.99       213
+              macro avg       0.99      0.99      0.99       213
+           weighted avg       0.99      0.99      0.99       213
